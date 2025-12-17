@@ -13,6 +13,8 @@
 /*** defines ***/
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+#define HEIN_VERSION "0.0.1"
+
 /*** data ***/
 struct editorConfig {
   int screenrows;
@@ -147,10 +149,27 @@ void abFree(struct abuf *ab) { free(ab->b); }
 
 void editorDrawRows(struct abuf *ab) {
   int y;
-  for (y = 0; y < E.screencols; y++) {
+  for (y = 0; y < E.screenrows; y++) {
     abAppend(ab, "~", 1);
 
-    if (y < E.screenrows - 2) {
+    // Welcome message
+    if (y == E.screenrows / 3) {
+      char welcome[80];
+      char str[] = "Welcome to Hein --version " HEIN_VERSION;
+      int msglen = strlen(str);
+      if (E.screencols > msglen) {
+        int padding = (E.screencols - msglen) / 2;
+        while (padding--) {
+          abAppend(ab, " ", 1);
+        }
+      }
+      int welcomelen = snprintf(welcome, sizeof(welcome), str, 0);
+      if (welcomelen > E.screencols)
+        welcomelen = E.screencols;
+      abAppend(ab, welcome, welcomelen);
+    }
+    abAppend(ab, "\x1b[K", 3);
+    if (y < E.screenrows - 1) {
       abAppend(ab, "\r\n", 2);
     }
   }
@@ -159,11 +178,12 @@ void editorDrawRows(struct abuf *ab) {
 void editorRefreshScreen() {
   struct abuf ab = ABUF_INIT;
 
-  abAppend(&ab, "\x1b[2J", 4);
+  abAppend(&ab, "\x1b[?25l", 6);
   abAppend(&ab, "\x1b[H", 3);
   editorDrawRows(&ab);
 
   abAppend(&ab, "\x1b[H", 3);
+  abAppend(&ab, "\x1b[?25h", 6);
 
   write(STDOUT_FILENO, ab.b, ab.len);
   abFree(&ab);
