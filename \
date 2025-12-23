@@ -179,7 +179,7 @@ int getWindowSize(int *rows, int *cols) {
 /*** file i/o ***/
 
 void editorOpen() {
-  char *line = "Hein, world!";
+  char *line = "Hello, world!";
   size_t linelen = 13;
 
   E.row.size = linelen;
