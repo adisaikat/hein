@@ -178,15 +178,26 @@ int getWindowSize(int *rows, int *cols) {
 
 /*** file i/o ***/
 
-void editorOpen() {
-  char *line = "Hein, world!";
-  size_t linelen = 13;
+void editorOpen(const char *filename) {
+  FILE *fp = fopen(filename, "r");
+  if (!fp)
+    die("fopen");
 
-  E.row.size = linelen;
-  E.row.chars = malloc(linelen + 1);
-  memcpy(E.row.chars, line, linelen);
-  E.row.chars[linelen] = '\0';
-  E.numrows = 1;
+  char buf[1024];
+
+  if (fgets(buf, sizeof(buf), fp)) {
+    size_t len = strlen(buf);
+    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) {
+      len--;
+    }
+
+    E.row.size = len;
+    E.row.chars = malloc(len + 1);
+    memcpy(E.row.chars, buf, len);
+    E.row.chars[len] = '\0';
+    E.numrows = 1;
+  }
+  fclose(fp);
 }
 
 /*** input ***/
@@ -277,9 +288,9 @@ void abFree(struct abuf *ab) { free(ab->b); }
 void editorDrawRows(struct abuf *ab) {
   int y;
   for (y = 0; y < E.screenrows; y++) {
-    abAppend(ab, "~ ", 2);
     if (y >= E.numrows) {
       if (y == E.screenrows / 3) {
+        abAppend(ab, "~", 2);
         char welcome[80];
         char str[] = "Welcome to Hein --version " HEIN_VERSION;
         int msglen = strlen(str);
@@ -294,8 +305,7 @@ void editorDrawRows(struct abuf *ab) {
           welcomelen = E.screencols;
         abAppend(ab, welcome, welcomelen);
       } else {
-        // Nothing to do for now
-        // I think either I will add number to the columns.
+        abAppend(ab, "~", 2);
       }
     } else {
       int len = E.row.size;
@@ -341,10 +351,13 @@ void initEditor() {
 }
 
 /*** __main__ ***/
-int main() {
+int main(int argc, char *argv[]) {
   enableRawMode();
   initEditor();
-  editorOpen();
+  if (argc >= 2) {
+    editorOpen(argv[1]);
+    editorRefreshScreen();
+  }
   while (1) {
     editorProcessKeypress();
     editorRefreshScreen();
