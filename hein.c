@@ -38,10 +38,11 @@ typedef struct erow {
 
 struct editorConfig {
   int cx, cy;
+  int rowoff;
   int screenrows;
   int screencols;
   int numrows;
-  erow row;
+  erow *row;
   struct termios orig_termios;
 };
 
@@ -176,6 +177,19 @@ int getWindowSize(int *rows, int *cols) {
   }
 }
 
+/*** row operation ***/
+
+void editorAppendRow(char *s, size_t len) {
+  E.row = realloc(E.row, sizeof(erow) * (E.numrows + 1));
+
+  int at = E.numrows;
+  E.row[at].size = len;
+  E.row[at].chars = malloc(len + 1);
+  memcpy(E.row[at].chars, s, len);
+  E.row[at].chars[len] = '\0';
+  E.numrows++;
+}
+
 /*** file i/o ***/
 
 void editorOpen(const char *filename) {
@@ -185,17 +199,13 @@ void editorOpen(const char *filename) {
 
   char buf[1024];
 
-  if (fgets(buf, sizeof(buf), fp)) {
-    size_t len = strlen(buf);
+  size_t len;
+  while (fgets(buf, sizeof(buf), fp) != NULL) {
+    len = strlen(buf);
     while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) {
       len--;
     }
-
-    E.row.size = len;
-    E.row.chars = malloc(len + 1);
-    memcpy(E.row.chars, buf, len);
-    E.row.chars[len] = '\0';
-    E.numrows = 1;
+    editorAppendRow(buf, len);
   }
   fclose(fp);
 }
@@ -219,7 +229,7 @@ void editorMoveCursor(int key) {
     }
     break;
   case ARROW_DOWN:
-    if (E.cy != E.screenrows - 1) {
+    if (E.cy < E.numrows) {
       E.cy++;
     }
     break;
@@ -285,11 +295,22 @@ void abAppend(struct abuf *ab, const char *s, size_t len) {
 void abFree(struct abuf *ab) { free(ab->b); }
 
 /*** output ***/
+
+void editorScroll() {
+  if (E.cy < E.rowoff) {
+    E.rowoff = E.cy;
+  }
+  if (E.cy >= E.rowoff + E.screenrows) {
+    E.rowoff = E.cy - E.screenrows + 1;
+  }
+}
+
 void editorDrawRows(struct abuf *ab) {
   int y;
   for (y = 0; y < E.screenrows; y++) {
-    if (y >= E.numrows) {
-      if (y == E.screenrows / 3) {
+    int filerow = y + E.rowoff;
+    if (filerow >= E.numrows) {
+      if (E.numrows == 0 && y == E.screenrows / 3) {
         abAppend(ab, "~", 2);
         char welcome[80];
         char str[] = "Welcome to Hein --version " HEIN_VERSION;
@@ -308,10 +329,10 @@ void editorDrawRows(struct abuf *ab) {
         abAppend(ab, "~", 2);
       }
     } else {
-      int len = E.row.size;
+      int len = E.row[filerow].size;
       if (len > E.screencols)
         len = E.screencols;
-      abAppend(ab, E.row.chars, len);
+      abAppend(ab, E.row[filerow].chars, len);
     }
 
     // Welcome message
@@ -323,6 +344,7 @@ void editorDrawRows(struct abuf *ab) {
 }
 
 void editorRefreshScreen() {
+  editorScroll();
   struct abuf ab = ABUF_INIT;
 
   abAppend(&ab, "\x1b[?25l", 6);
@@ -343,7 +365,9 @@ void editorRefreshScreen() {
 void initEditor() {
   E.cx = 0;
   E.cy = 0;
+  E.rowoff = 0;
   E.numrows = 0;
+  E.row = NULL;
 
   if (getWindowSize(&E.screenrows, &E.screencols) == -1) {
     die("getWindowSize");
@@ -356,8 +380,8 @@ int main(int argc, char *argv[]) {
   initEditor();
   if (argc >= 2) {
     editorOpen(argv[1]);
-    editorRefreshScreen();
   }
+  editorRefreshScreen();
   while (1) {
     editorProcessKeypress();
     editorRefreshScreen();
