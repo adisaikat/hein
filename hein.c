@@ -34,6 +34,12 @@ enum editorKey {
 };
 
 /*** data ***/
+
+typedef struct erow {
+  int size;
+  char *chars;
+} erow;
+
 struct editorConfig {
   int cx, cy;
   int screenrows;
