@@ -14,6 +14,7 @@
 
 /*** defines ***/
 #define HEIN_VERSION "0.0.1"
+#define HEIN_TAB_STOP 4
 
 #define CTRL_KEY(k) ((k) & 0x1f)
 
@@ -185,12 +186,25 @@ int getWindowSize(int *rows, int *cols) {
 void editorUpdateRow(erow *row) {
   int tabs = 0;
   int j;
+  for (j = 0; j < row->size; j++) {
+    if (row->chars[j] == '\t') {
+      tabs++;
+    }
+  }
+
   free(row->render);
-  row->render = malloc(row->size + 1);
+  row->render = malloc(row->size + tabs * (HEIN_TAB_STOP - 1) + 1);
 
   int ind = 0;
   for (j = 0; j < row->size; j++) {
-    row->render[ind++] = row->chars[j];
+    if (row->chars[j] == '\t') {
+      row->render[ind++] = ' ';
+      while (ind % HEIN_TAB_STOP != 0) {
+        row->render[ind++] = ' ';
+      }
+    } else {
+      row->render[ind++] = row->chars[j];
+    }
   }
   row->render[ind] = '\0';
   row->rsize = ind;
