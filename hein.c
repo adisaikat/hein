@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
 #include <stdarg.h>
 #include <stddef.h>
@@ -22,6 +23,7 @@
 #define CTRL_KEY(k) ((k) & 0x1f)
 
 enum editorKey {
+  BACKSPACE = 127,
   ARROW_LEFT = 1000,
   ARROW_RIGHT,
   ARROW_UP,
@@ -268,6 +270,25 @@ void editorInsertChar(int c) {
 
 /*** file i/o ***/
 
+char *editorRowsToString(int *buflen) {
+  int totlen = 0;
+  int j;
+  for (j = 0; j < E.numrows; j++) {
+    totlen += E.row[j].size + 1;
+  }
+  *buflen = totlen;
+
+  char *buf = malloc(totlen);
+  char *p = buf;
+  for (j = 0; j < E.numrows; j++) {
+    memcpy(p, E.row[j].chars, E.row[j].size);
+    p += E.row[j].size;
+    *p = '\n';
+    p++;
+  }
+  return buf;
+}
+
 void editorOpen(const char *filename) {
   free(E.filename);
   size_t filename_len = strlen(filename);
@@ -290,6 +311,18 @@ void editorOpen(const char *filename) {
     editorAppendRow(buf, len);
   }
   fclose(fp);
+}
+
+void editorSave(){
+  if (E.filename == NULL) return;
+
+  int len;
+  char *buf = editorRowsToString(&len);
+
+  int fd = open(E.filename, O_RDWR | O_CREAT | O_TRUNC, 0644);
+  write(fd, buf, len);
+  close(fd);
+  free(buf);
 }
 
 /*** input ***/
@@ -342,6 +375,10 @@ void editorMoveCursor(int key) {
 void editorProcessKeypress() {
   int c = editorReadKey();
   switch (c) {
+  case '\r':
+    // TODO
+    break;
+
   case CTRL_KEY('q'):
     write(STDOUT_FILENO, "\x1b[2J", 4);
     write(STDOUT_FILENO, "\x1b[H", 3);
@@ -358,6 +395,12 @@ void editorProcessKeypress() {
       break;
     E.pos = E.row[E.cy].size;
     E.cx = E.pos;
+    break;
+
+  case BACKSPACE:
+  case CTRL_KEY('h'):
+  case DEL_KEY:
+    // TODO
     break;
 
   case PAGE_UP:
@@ -384,6 +427,10 @@ void editorProcessKeypress() {
   case ARROW_LEFT:
   case ARROW_RIGHT:
     editorMoveCursor(c);
+    break;
+
+  case CTRL_KEY('l'):
+  case '\x1b':
     break;
 
     // TODO: (raw and inset modes)
