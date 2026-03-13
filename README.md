@@ -1,2 +1,1 @@
-# A simple text editor
-
+# Simple Text editor written in C
